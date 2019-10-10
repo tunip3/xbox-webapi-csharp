@@ -1,13 +1,13 @@
 ﻿using System;
 using System.IO;
 using System.Collections.Specialized;
-using RestSharp;
 using Newtonsoft.Json;
 using XboxWebApi.Common;
-using XboxWebApi.Extensions;
 using XboxWebApi.Authentication.Model;
 using System.Text;
 using System.Threading.Tasks;
+using System.Net.Http;
+using System.Text.Encodings.Web;
 
 namespace XboxWebApi.Authentication
 {
@@ -37,15 +37,11 @@ namespace XboxWebApi.Authentication
             RefreshToken = refreshToken;
         }
 
-        public static RestClientEx ClientFactory(string baseUrl,
-            JsonNamingStrategy naming = JsonNamingStrategy.Default)
+        public static HttpClient ClientFactory(string baseUrl)
         {
-            return new RestClientEx(baseUrl, naming);
-        }
-
-        public bool Authenticate()
-        {
-            return AuthenticateAsync().GetAwaiter().GetResult();
+            HttpClient client = new HttpClient();
+            client.BaseAddress = new Uri(baseUrl.EndsWith("/") ? baseUrl : baseUrl + "/");
+            return client;
         }
 
         public async Task<bool> AuthenticateAsync()
@@ -59,97 +55,85 @@ namespace XboxWebApi.Authentication
             return true;
         }
 
-        public static WindowsLiveResponse RefreshLiveToken(RefreshToken token)
-        {
-            return RefreshLiveTokenAsync(token).GetAwaiter().GetResult();
-        }
-
         public static async Task<WindowsLiveResponse> RefreshLiveTokenAsync(
             RefreshToken refreshToken)
         {
-            RestClientEx client = ClientFactory("https://login.live.com",
-                JsonNamingStrategy.SnakeCase);
-            RestRequestEx request = new RestRequestEx("oauth20_token.srf", Method.GET);
-            NameValueCollection nv = new Model.WindowsLiveRefreshQuery(refreshToken).GetQuery();
-            request.AddQueryParameters(nv);
-            IRestResponse<WindowsLiveResponse> response = await client.ExecuteTaskAsync<WindowsLiveResponse>(request);
-            return response.Data;
-        }
+            HttpClient client = ClientFactory("https://login.live.com/");
 
-        public static UserToken AuthenticateXASU(AccessToken accessToken)
-        {
-            return AuthenticateXASUAsync(accessToken).GetAwaiter().GetResult();
+            var request = new HttpRequestMessage(HttpMethod.Get, "oauth20_token.srf");
+            var parameters = new Model.WindowsLiveRefreshQuery(refreshToken);
+            request.AddQueryParameter(parameters.GetQuery());
+            
+            var response = (await client.SendAsync(request)).EnsureSuccessStatusCode();
+            return await response.Content.ReadAsJsonAsync<WindowsLiveResponse>(JsonNamingStrategy.SnakeCase);
         }
 
         public static async Task<UserToken> AuthenticateXASUAsync(AccessToken accessToken)
         {
-            RestClientEx client = ClientFactory("https://user.auth.xboxlive.com");
-            RestRequestEx request = new RestRequestEx("user/authenticate", Method.POST);
-            request.AddHeader("x-xbl-contract-version", "1");
-            request.AddJsonBody(new XASURequest(accessToken));
-            IRestResponse<XASResponse> response = await client.ExecuteTaskAsync<XASResponse>(request);
-            return new UserToken(response.Data);
-        }
+            HttpClient client = ClientFactory("https://user.auth.xboxlive.com/");
+            var request = new HttpRequestMessage(HttpMethod.Post, "user/authenticate");
+            var requestBody = new XASURequest(accessToken);
+            request.Content = new JsonContent(requestBody);
+            request.Headers.Add("x-xbl-contract-version", "1");
 
-        public DeviceToken AuthenticateXASD(AccessToken accessToken)
-        {
-            return AuthenticateXASDAsync(accessToken).GetAwaiter().GetResult();
+            var response = (await client.SendAsync(request)).EnsureSuccessStatusCode();
+            Console.WriteLine(await response.Content.ReadAsStringAsync());
+            var data = await response.Content.ReadAsJsonAsync<XASResponse>();
+            return new UserToken(data);
         }
 
         public static async Task<DeviceToken> AuthenticateXASDAsync(AccessToken accessToken)
         {
-            RestClientEx client = ClientFactory("https://device.auth.xboxlive.com");
-            RestRequestEx request = new RestRequestEx("device/authenticate", Method.POST);
-            request.AddHeader("x-xbl-contract-version", "1");
-            request.AddJsonBody(new XASDRequest(accessToken));
-            IRestResponse<XASResponse> response = await client.ExecuteTaskAsync<XASResponse>(request);
-            return new DeviceToken(response.Data);
-        }
+            HttpClient client = ClientFactory("https://device.auth.xboxlive.com/");
+            var request = new HttpRequestMessage(HttpMethod.Post, "device/authenticate");
+            var requestBody = new XASDRequest(accessToken);
+            request.Headers.Add("x-xbl-contract-version", "1");
+            request.Content = new JsonContent(requestBody);
 
-        public static TitleToken AuthenticateXAST(AccessToken accessToken, DeviceToken deviceToken)
-        {
-            return AuthenticateXASTAsync(accessToken, deviceToken).GetAwaiter().GetResult();
+            var response = (await client.SendAsync(request)).EnsureSuccessStatusCode();
+            var data = await response.Content.ReadAsJsonAsync<XASResponse>();
+            return new DeviceToken(data);
         }
 
         public static async Task<TitleToken> AuthenticateXASTAsync(AccessToken accessToken,
                                                   DeviceToken deviceToken)
         {
-            RestClientEx client = ClientFactory("https://title.auth.xboxlive.com");
-            RestRequestEx request = new RestRequestEx("title/authenticate", Method.POST);
-            request.AddHeader("x-xbl-contract-version", "1");
-            request.AddJsonBody(new XASTRequest(accessToken, deviceToken));
-            IRestResponse<XASResponse> response = await client.ExecuteTaskAsync<XASResponse>(request);
-            return new TitleToken(response.Data);
-        }
+            HttpClient client = ClientFactory("https://title.auth.xboxlive.com/");
+            var request = new HttpRequestMessage(HttpMethod.Post, "title/authenticate");
+            var requestBody = new XASTRequest(accessToken, deviceToken);
+            request.Headers.Add("x-xbl-contract-version", "1");
+            request.Content = new JsonContent(requestBody);
 
-        public static XToken AuthenticateXSTS(UserToken userToken,
-                                              DeviceToken deviceToken = null,
-                                              TitleToken titleToken = null)
-        {
-            return AuthenticateXSTSAsync(userToken, deviceToken, titleToken).GetAwaiter().GetResult();
+            var response = (await client.SendAsync(request)).EnsureSuccessStatusCode();
+            var data = await response.Content.ReadAsJsonAsync<XASResponse>();
+            return new TitleToken(data);
         }
 
         public static async Task<XToken> AuthenticateXSTSAsync(UserToken userToken,
                                               DeviceToken deviceToken = null,
                                               TitleToken titleToken = null)
         {
-            RestClientEx client = ClientFactory("https://xsts.auth.xboxlive.com");
-            RestRequestEx request = new RestRequestEx("xsts/authorize", Method.POST);
-            request.AddHeader("x-xbl-contract-version", "1");
-            request.AddJsonBody(new XSTSRequest(userToken,
-                                                deviceToken: deviceToken,
-                                                titleToken: titleToken));
-            IRestResponse<XASResponse> response = await client.ExecuteTaskAsync<XASResponse>(request);
-            return new XToken(response.Data);
+            HttpClient client = ClientFactory("https://xsts.auth.xboxlive.com/");
+            var request = new HttpRequestMessage(HttpMethod.Post, "xsts/authorize");
+            var requestBody = new XSTSRequest(userToken,
+                                              deviceToken: deviceToken,
+                                              titleToken: titleToken);
+            request.Headers.Add("x-xbl-contract-version", "1");
+            request.Content = new JsonContent(requestBody);
+
+            var response = await client.SendAsync(request);
+            var data = await response.Content.ReadAsJsonAsync<XASResponse>();
+            return new XToken(data);
         }
 
         public static string GetWindowsLiveAuthenticationUrl()
         {
-            RestClientEx client = ClientFactory("https://login.live.com");
-            RestRequestEx request = new RestRequestEx("oauth20_authorize.srf", Method.GET);
-            NameValueCollection nv = new Model.WindowsLiveAuthenticationQuery().GetQuery();
-            request.AddQueryParameters(nv);
-            return client.BuildUri(request).ToString();
+            var parameters = new Model.WindowsLiveAuthenticationQuery();
+            var url = QueryHelpers.AddQueryString(
+                "https://login.live.com/oauth20_authorize.srf",
+                parameters.GetQuery());
+
+            return url;
         }
 
         public static WindowsLiveResponse ParseWindowsLiveResponse(string url)
