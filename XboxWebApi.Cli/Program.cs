@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using Microsoft.Extensions.Logging;
 using XboxWebApi.Authentication;
 using XboxWebApi.Authentication.Model;
 
@@ -7,9 +8,10 @@ namespace XboxWebApi.Cli
 {
     class Program
     {
+        static ILogger logger = XboxWebApi.Common.Logging.Factory.CreateLogger<Program>();
         static void Main(string[] args)
         {
-            FileStream tokenOutputFile = null;
+            string tokenOutputFilePath = null;
             string responseUrl = null;
             string requestUrl = AuthenticationService.GetWindowsLiveAuthenticationUrl();
 
@@ -23,19 +25,7 @@ namespace XboxWebApi.Cli
 
             if (args.Length == 2)
             {
-                string tokenOutputFilePath = args[1];
-                try
-                {
-                    tokenOutputFile = new FileStream(tokenOutputFilePath, FileMode.Create);
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine("Failed to open token outputfile \'{0}\', error: {1}",
-                        tokenOutputFile , e.Message);
-                    return;
-                }
-                Console.WriteLine("Storing tokens to file \'{0}\' on successful auth",
-                    tokenOutputFilePath);
+                tokenOutputFilePath = args[1];
             }
 
             responseUrl = args[0];
@@ -50,10 +40,13 @@ namespace XboxWebApi.Cli
                 return;
             }
 
-            if (tokenOutputFile != null)
+            if (tokenOutputFilePath != null)
             {
-                authenticator.DumpToFile(tokenOutputFile);
-                tokenOutputFile.Close();
+                success = authenticator.DumpToJsonFileAsync(tokenOutputFilePath).GetAwaiter().GetResult();
+                if (!success)
+                {
+                    Console.WriteLine("Failed to dump tokens to {}", tokenOutputFilePath);
+                }
             }
 
             Console.WriteLine(authenticator.XToken);
