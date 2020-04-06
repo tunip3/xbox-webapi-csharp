@@ -78,17 +78,26 @@ namespace XboxWebApi.Authentication
         /// <returns>Returns true on success, false otherwise</returns>
         public async Task<bool> AuthenticateAsync()
         {
-            logger.LogTrace("AuthenticateAsync() called");
-            logger.LogTrace("AuthenticateAsync: Calling RefreshLiveTokenAsync");
-            WindowsLiveResponse windowsLiveTokens = await RefreshLiveTokenAsync(RefreshToken);
-            logger.LogTrace("AuthenticateAsync: Constructing AccessToken");
-            AccessToken = new AccessToken(windowsLiveTokens);
-            logger.LogTrace("AuthenticateAsync: Constructing RefreshToken");
-            RefreshToken = new RefreshToken(windowsLiveTokens);
-            logger.LogTrace("AuthenticateAsync: Calling AuthenticateXASUAsync");
-            UserToken = await AuthenticateXASUAsync(AccessToken);
-            logger.LogTrace("AuthenticateAsync: Calling AuthenticateXSTSAsync");
-            XToken = await AuthenticateXSTSAsync(UserToken, DeviceToken, TitleToken);
+            try
+            {
+                logger.LogTrace("AuthenticateAsync() called");
+                logger.LogTrace("AuthenticateAsync: Calling RefreshLiveTokenAsync");
+                WindowsLiveResponse windowsLiveTokens = await RefreshLiveTokenAsync(RefreshToken);
+                logger.LogTrace("AuthenticateAsync: Constructing AccessToken");
+                AccessToken = new AccessToken(windowsLiveTokens);
+                logger.LogTrace("AuthenticateAsync: Constructing RefreshToken");
+                RefreshToken = new RefreshToken(windowsLiveTokens);
+                logger.LogTrace("AuthenticateAsync: Calling AuthenticateXASUAsync");
+                UserToken = await AuthenticateXASUAsync(AccessToken);
+                logger.LogTrace("AuthenticateAsync: Calling AuthenticateXSTSAsync");
+                XToken = await AuthenticateXSTSAsync(UserToken, DeviceToken, TitleToken);
+            }
+            catch (HttpRequestException ex)
+            {
+                logger.LogError(ex, "AuthenticateAsync failed due to HTTP error: {}", ex.Message);
+                return false;
+            }
+
             logger.LogTrace("AuthenticateAsync: Setting UserInformation");
             UserInformation = XToken.UserInformation;
             return true;
@@ -168,7 +177,6 @@ namespace XboxWebApi.Authentication
             request.Headers.Add("x-xbl-contract-version", "1");
 
             var response = (await client.SendAsync(request)).EnsureSuccessStatusCode();
-            Console.WriteLine(await response.Content.ReadAsStringAsync());
             var data = await response.Content.ReadAsJsonAsync<XASResponse>();
             return new UserToken(data);
         }
