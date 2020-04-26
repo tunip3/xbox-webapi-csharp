@@ -17,7 +17,7 @@ namespace XboxWebApi.Cli
             {
                 Console.WriteLine("1) Open following URL in your WebBrowser:\n\n{0}\n\n" +
                                     "2) Authenticate with your Microsoft Account\n" +
-                                    "3) Paste returned URL from addressbar: \n", requestUrl);
+                                    "3) Execute application again with returned URL from addressbar as the argument\n", requestUrl);
                 return;
             }
 

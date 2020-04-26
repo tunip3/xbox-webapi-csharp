@@ -8,11 +8,13 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Net.Http;
 using System.Text.Encodings.Web;
+using Microsoft.Extensions.Logging;
 
 namespace XboxWebApi.Authentication
 {
     public class AuthenticationService
     {
+        static ILogger logger = Logging.Factory.CreateLogger<AuthenticationService>();
         public AccessToken AccessToken { get; set; }
         public RefreshToken RefreshToken { get; set; }
         public UserToken UserToken { get; set; }
