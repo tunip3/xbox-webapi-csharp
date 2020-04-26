@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using XboxWebApi.Extensions;
 using XboxWebApi.Authentication;
 using XboxWebApi.Authentication.Model;
 
@@ -44,7 +43,7 @@ namespace XboxWebApi.Cli
             WindowsLiveResponse response = AuthenticationService.ParseWindowsLiveResponse(responseUrl);
             AuthenticationService authenticator = new AuthenticationService(response);
 
-            bool success = authenticator.Authenticate();
+            bool success = authenticator.AuthenticateAsync().GetAwaiter().GetResult();
             if (!success)
             {
                 Console.WriteLine("Authentication failed!");
